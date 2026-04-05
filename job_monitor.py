@@ -4,6 +4,7 @@ Job Monitor Bot - Abdulla Ali
 """
 
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 import asyncio
 import aiohttp
 import json
@@ -11,9 +12,10 @@ import os
 from datetime import datetime
 
 # ===== زانیاریەکان =====
-API_ID = 38746926
-API_HASH = "38dc23beaecc586ba785883b57e966ff"
-GROQ_API_KEY = "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"
+API_ID = int(os.environ["API_ID"])
+API_HASH = os.environ["API_HASH"]
+GROQ_API_KEY = os.environ["GROQ_API_KEY"]
+TELEGRAM_SESSION = os.environ["TELEGRAM_SESSION"]
 
 # ===== ئەکاونتی خۆت (بۆ وەرگرتنی ئاگادارکردنەوە) =====
 YOUR_TELEGRAM_ID = None  # دەتووریتەوە دوای دەستپێکردن
@@ -78,7 +80,7 @@ CV_SUMMARY = """
 # ===== هەڵسەنگاندن بە Groq AI =====
 async def evaluate_job(job_text: str) -> dict:
     """هەڵسەنگاندنی هەڵی کار ئایا لەگەڵ سیڤی دەگونجێت"""
-    
+
     prompt = f"""
 سیڤی کاندیدات:
 {CV_SUMMARY}
@@ -97,7 +99,7 @@ async def evaluate_job(job_text: str) -> dict:
   "company": "ناوی کۆمپانیاکە ئەگەر هەبوو"
 }}
 """
-    
+
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -115,16 +117,26 @@ async def evaluate_job(job_text: str) -> dict:
             ) as resp:
                 data = await resp.json()
                 text = data["choices"][0]["message"]["content"]
-                # پاککردنەوەی JSON
                 text = text.strip()
+
                 if "```" in text:
-                    text = text.split("```")[1]
-                    if text.startswith("json"):
-                        text = text[4:]
+                    parts = text.split("```")
+                    if len(parts) > 1:
+                        text = parts[1]
+                        if text.startswith("json"):
+                            text = text[4:]
+
                 return json.loads(text.strip())
+
     except Exception as e:
         print(f"Groq هەڵە: {e}")
-        return {"suitable": True, "score": 50, "reason": "هەڵسەنگاندن سەرکەوتوو نەبوو", "job_title": "نەزانراو", "company": "نەزانراو"}
+        return {
+            "suitable": True,
+            "score": 50,
+            "reason": "هەڵسەنگاندن سەرکەوتوو نەبوو",
+            "job_title": "نەزانراو",
+            "company": "نەزانراو"
+        }
 
 
 # ===== تەکست چاودێری =====
@@ -138,41 +150,39 @@ def contains_job_keyword(text: str) -> bool:
 
 
 # ===== دەستپێکردنی بۆت =====
-client = TelegramClient("job_session", API_ID, API_HASH)
+client = TelegramClient(StringSession(TELEGRAM_SESSION), API_ID, API_HASH)
 
 @client.on(events.NewMessage(chats=GROUPS))
 async def handle_new_message(event):
     """کاتێک پەیامی نوێ دێت"""
-    
+
     message_text = event.message.text or ""
-    
+
     if len(message_text) < 20:
         return
-    
+
     if not contains_job_keyword(message_text):
         return
-    
+
     print(f"\n🔍 هەڵی کار دۆزراوەتەوە لە: {event.chat.title if hasattr(event.chat, 'title') else 'نەزانراو'}")
     print(f"📝 پەیام: {message_text[:100]}...")
-    
-    # هەڵسەنگاندن بە AI
+
     evaluation = await evaluate_job(message_text)
-    
+
     if not evaluation.get("suitable", False):
         print(f"❌ گونجاو نییە - {evaluation.get('reason', '')}")
         return
-    
+
     score = evaluation.get("score", 0)
     if score < 40:
         print(f"❌ نمرە کەمە ({score}/100)")
         return
-    
+
     print(f"✅ گونجاوە! نمرە: {score}/100")
-    
-    # ئاگادارکردنەوە
+
     group_name = event.chat.title if hasattr(event.chat, "title") else "نەزانراو"
-    job_link = f"https://t.me/{event.chat.username}/{event.id}" if hasattr(event.chat, "username") else "بەردەست نییە"
-    
+    job_link = f"https://t.me/{event.chat.username}/{event.id}" if hasattr(event.chat, "username") and event.chat.username else "بەردەست نییە"
+
     notification = f"""
 🟢 هەڵی کاری نوێ دۆزراوەتەوە!
 
@@ -189,23 +199,25 @@ async def handle_new_message(event):
 
 ⏰ کات: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 """
-    
-    # ناردنی پەیام بۆ خۆت
+
     await client.send_message("me", notification)
-    print(f"📨 ئاگادارکردنەوە نێردرا!")
+    print("📨 ئاگادارکردنەوە نێردرا!")
 
 
 async def main():
     print("🚀 Job Monitor Bot دەستپێدەکات...")
     print(f"👁️ چاودێری {len(GROUPS)} گرووپ دەکات")
     print("=" * 50)
-    
-    await client.start()
-    
+
+    await client.connect()
+
+    if not await client.is_user_authorized():
+        raise RuntimeError("Telegram session is not authorized")
+
     me = await client.get_me()
     print(f"✅ لۆگین بوو بە: {me.first_name} (@{me.username})")
     print("⏳ چاودێری دەکات... (Ctrl+C بکە بۆ وەستان)")
-    
+
     await client.run_until_disconnected()
 
 
