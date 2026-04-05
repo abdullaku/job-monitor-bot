@@ -9,16 +9,21 @@ import asyncio
 import aiohttp
 import json
 import os
+import sys
 from datetime import datetime
 
 # ===== زانیاریەکان =====
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 GROQ_API_KEY = os.environ["GROQ_API_KEY"]
-TELEGRAM_SESSION = os.environ["TELEGRAM_SESSION"]
+TELEGRAM_SESSION = os.environ.get("TELEGRAM_SESSION", "").strip()
+
+if not TELEGRAM_SESSION:
+    print("❌ TELEGRAM_SESSION بەتاڵە")
+    sys.exit(1)
 
 # ===== ئەکاونتی خۆت (بۆ وەرگرتنی ئاگادارکردنەوە) =====
-YOUR_TELEGRAM_ID = None  # دەتووریتەوە دوای دەستپێکردن
+YOUR_TELEGRAM_ID = None
 
 # ===== گرووپەکان =====
 GROUPS = [
@@ -44,13 +49,10 @@ GROUPS = [
 
 # ===== کەلمەی کار =====
 JOB_KEYWORDS = [
-    # کوردی
     "درکاوە", "هەڵی کار", "کارمەند", "فرصە", "پێویستمان",
     "کارەکە", "وەزیفە", "دامەزراندن", "کرێکار",
-    # عەرەبی
     "وظيفة", "مطلوب", "فرصة عمل", "نبحث عن", "تعيين",
     "توظيف", "عمل", "وظائف", "مطلوب موظف",
-    # ئینگلیزی
     "hiring", "vacancy", "job opportunity", "we are looking",
     "position available", "join our team", "apply now",
     "required", "wanted", "recruitment",
@@ -79,8 +81,6 @@ CV_SUMMARY = """
 
 # ===== هەڵسەنگاندن بە Groq AI =====
 async def evaluate_job(job_text: str) -> dict:
-    """هەڵسەنگاندنی هەڵی کار ئایا لەگەڵ سیڤی دەگونجێت"""
-
     prompt = f"""
 سیڤی کاندیدات:
 {CV_SUMMARY}
@@ -116,8 +116,7 @@ async def evaluate_job(job_text: str) -> dict:
                 }
             ) as resp:
                 data = await resp.json()
-                text = data["choices"][0]["message"]["content"]
-                text = text.strip()
+                text = data["choices"][0]["message"]["content"].strip()
 
                 if "```" in text:
                     parts = text.split("```")
@@ -141,7 +140,6 @@ async def evaluate_job(job_text: str) -> dict:
 
 # ===== تەکست چاودێری =====
 def contains_job_keyword(text: str) -> bool:
-    """بینینی ئایا پەیامەکە هەڵی کار دەگەیەنێت"""
     text_lower = text.lower()
     for keyword in JOB_KEYWORDS:
         if keyword.lower() in text_lower:
@@ -150,12 +148,15 @@ def contains_job_keyword(text: str) -> bool:
 
 
 # ===== دەستپێکردنی بۆت =====
-client = TelegramClient(StringSession(TELEGRAM_SESSION), API_ID, API_HASH)
+try:
+    client = TelegramClient(StringSession(TELEGRAM_SESSION), API_ID, API_HASH)
+except Exception:
+    print("❌ TELEGRAM_SESSION دروست نییە. String ـی تەواو دابنێ، نەک نموونە یان string ـی کورتکراو.")
+    sys.exit(1)
+
 
 @client.on(events.NewMessage(chats=GROUPS))
 async def handle_new_message(event):
-    """کاتێک پەیامی نوێ دێت"""
-
     message_text = event.message.text or ""
 
     if len(message_text) < 20:
