@@ -179,7 +179,7 @@ def clean_for_llm(text: str) -> str:
     text = text.replace("\x00", " ")
     text = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
-    return text[:2500]
+    return text[:1500]
 
 def contains_job_keyword(text: str) -> bool:
     txt = normalize_text(text)
@@ -241,110 +241,86 @@ async def evaluate_job(job_text: str, group_name: str) -> dict:
     safe_job_text = clean_for_llm(job_text)
     safe_group_name = clean_for_llm(group_name)
 
-    prompt = f"""
-You are a strict job-matching assistant.
+    locations_str = ", ".join(CANDIDATE_PROFILE["preferred_locations"][:20])
+    prompt = (
+        "You are a strict job-matching assistant.\n\n"
+        "Evaluate whether this Telegram job post matches the candidate.\n\n"
+        f"Candidate base city: Erbil.\n\n"
+        f"Preferred locations: {locations_str}\n\n"
+        "Accepted career directions:\n"
+        "1. Sales / CRM / Customer Service / Front Desk / Reception\n"
+        "2. Real Estate / Property Sales / Leasing\n"
+        "3. Cashier / POS / Data Entry / Office Clerk\n\n"
+        "Rejected roles: restaurant, kitchen, cleaner, security, guard, medical, teacher, construction, driver-only.\n\n"
+        "Rules:\n"
+        "1. Accept only if location is in Erbil or nearby preferred areas.\n"
+        "2. If location missing or unclear: suitable=false, location_ok=false.\n"
+        "3. If role does not match accepted directions: reject.\n"
+        "4. Output valid JSON only. No markdown.\n\n"
+        f"Group: {safe_group_name}\n\n"
+        f"Job post:\n{safe_job_text}\n\n"
+        'Return exactly this JSON:\n'
+        '{"suitable":true,"score":0,"matched_profile_id":"","matched_profile_title":"","job_title_ku":"","company_ku":"","location_ku":"","reason_ku":"","summary_ku":"","requirements_ku":[],"salary_ku":"","contact_ku":"","language":"","location_ok":true}'
+    )
 
-Evaluate whether this Telegram job post matches the candidate.
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                await asyncio.sleep(2 ** attempt)  # 2s, 4s backoff
 
-Candidate base city: Erbil.
+            timeout = aiohttp.ClientTimeout(total=60)
+            async with llm_lock:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {GROQ_API_KEY}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": GROQ_MODEL,
+                            "messages": [
+                                {"role": "user", "content": prompt}
+                            ],
+                            "temperature": 0.1,
+                            "max_tokens": 500
+                        }
+                    ) as resp:
+                        raw = await resp.text()
 
-Preferred locations:
-{", ".join(CANDIDATE_PROFILE["preferred_locations"][:25])}
+                        if resp.status == 429:
+                            print(f"⏳ Groq rate limit - چاوەڕوانی... (هەوڵ {attempt+1}/3)")
+                            continue
 
-Main accepted career directions:
-1. Sales / CRM / Customer Service / Front Desk / Reception
-2. Real Estate / Property Sales / Leasing / Client Relations
-3. Cashier / POS / Office Clerk / Data Entry / System Handling
+                        if resp.status != 200:
+                            print(f"❌ Groq status: {resp.status}")
+                            print(f"❌ Groq error: {raw[:500]}")
+                            return fallback_result(f"Groq request failed: {resp.status}")
 
-Rejected career directions:
-restaurant, kitchen, food service, cleaner, security, guard, medical specialist, teacher, construction, driver-only.
+                        try:
+                            data = json.loads(raw)
+                        except Exception:
+                            print("❌ Groq response JSON parse failed")
+                            return fallback_result("Groq response parse failed")
 
-Rules:
-1. Accept only if location is clearly in Erbil or nearby preferred areas.
-2. If location is missing or unclear, set suitable=false and location_ok=false.
-3. If role does not match the accepted career directions, reject.
-4. If role matches rejected directions, reject.
-5. If post is English or Arabic, summarize in Kurdish Sorani.
-6. If unsure, reject.
-7. Output valid JSON only.
+                        if "choices" not in data or not data["choices"]:
+                            print("❌ Groq choices missing")
+                            return fallback_result("Groq choices missing")
 
-Group:
-{safe_group_name}
+                        content = data["choices"][0]["message"]["content"]
+                        parsed = extract_json(content)
 
-Job post:
-{safe_job_text}
+                        if not parsed:
+                            print("❌ JSON parse failed")
+                            print(content[:500])
+                            return fallback_result("JSON parse failed")
 
-Return exactly this JSON format:
-{{
-  "suitable": true,
-  "score": 0,
-  "matched_profile_id": "",
-  "matched_profile_title": "",
-  "job_title_ku": "",
-  "company_ku": "",
-  "location_ku": "",
-  "reason_ku": "",
-  "summary_ku": "",
-  "requirements_ku": [],
-  "salary_ku": "",
-  "contact_ku": "",
-  "language": "",
-  "location_ok": true
-}}
-""".strip()
+                        return parsed
 
-    try:
-        timeout = aiohttp.ClientTimeout(total=60)
-        async with llm_lock:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {GROQ_API_KEY}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": GROQ_MODEL,
-                        "messages": [
-                            {"role": "system", "content": "Return valid JSON only. No markdown."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "temperature": 0.1,
-                        "max_tokens": 700
-                    }
-                ) as resp:
-                    raw = await resp.text()
+        except Exception as e:
+            print(f"❌ Groq هەڵە (هەوڵ {attempt+1}/3): {e}")
 
-                    if resp.status != 200:
-                        print(f"❌ Groq status: {resp.status}")
-                        print(raw[:1000])
-                        return fallback_result(f"Groq request failed: {resp.status}")
-
-                    try:
-                        data = json.loads(raw)
-                    except Exception:
-                        print("❌ Groq response JSON parse failed")
-                        print(raw[:1000])
-                        return fallback_result("Groq response parse failed")
-
-                    if "choices" not in data or not data["choices"]:
-                        print("❌ Groq choices missing")
-                        print(raw[:1000])
-                        return fallback_result("Groq choices missing")
-
-                    content = data["choices"][0]["message"]["content"]
-                    parsed = extract_json(content)
-
-                    if not parsed:
-                        print("❌ JSON parse failed")
-                        print(content[:1000])
-                        return fallback_result("JSON parse failed")
-
-                    return parsed
-
-    except Exception as e:
-        print(f"❌ Groq هەڵە: {e}")
-        return fallback_result("هەڵسەنگاندنی AI سەرکەوتوو نەبوو")
+    return fallback_result("هەڵسەنگاندنی AI سەرکەوتوو نەبوو")
 
 client = TelegramClient(StringSession(TELEGRAM_SESSION), API_ID, API_HASH)
 
