@@ -1,6 +1,6 @@
 """
 Job Monitor Bot - Abdulla Ali
-AI-first job monitor for Telegram groups
+AI-first Telegram Job Monitor
 """
 
 from telethon import TelegramClient, events
@@ -56,7 +56,7 @@ JOB_KEYWORDS = [
     "وظيفة", "مطلوب", "فرصة عمل", "توظيف", "وظائف",
     "hiring", "vacancy", "job opportunity", "we are looking",
     "position available", "apply now", "recruitment",
-    "job title", "location", "reports to", "opening", "vacancies"
+    "job title", "location", "opening", "vacancies"
 ]
 
 # ===== STRUCTURED CANDIDATE PROFILE =====
@@ -69,6 +69,7 @@ CANDIDATE_PROFILE = {
         "Kasnazan", "کەسنەزان", "Kesnazan",
         "Rzgari", "Rizgari", "ڕزگاری",
         "60 Meter", "60m", "شەست مەتری", "60 متري",
+        "Gullan", "گولەن", "گولان",
         "Empire", "ئیمپایەر",
         "Italian City", "ئیتاڵی",
         "Dream City", "دریم سیتی",
@@ -146,18 +147,12 @@ CANDIDATE_PROFILE = {
         "security", "guard", "factory worker", "teacher", "doctor",
         "nurse", "medical specialist", "driver only", "construction labor",
         "baker", "barista", "dishwasher", "housekeeping", "janitor",
-        "مشفى", "مطعم", "مطبخ", "شيف", "طباخ", "نادل", "تنظيف",
+        "مطعم", "مطبخ", "شيف", "طباخ", "نادل", "تنظيف",
         "سكورتي", "حارس", "خباز", "كوفي", "نانکردن", "چێشتخانە",
         "مەتبەخ", "شێف", "قاپشور", "فاست فود", "خۆراک"
     ],
-    "must_have_conditions": {
-        "location_required": True,
-        "preferred_city_only": True,
-        "minimum_match_score": 70
-    }
 }
 
-# ===== MEMORY =====
 seen_jobs = set()
 
 
@@ -219,26 +214,47 @@ def extract_json(text: str):
     return None
 
 
-async def evaluate_job(job_text: str, group_name: str) -> dict:
-    prompt = f"""
-You are a strict job-matching assistant.
+def fallback_result(reason: str = "هەڵسەنگاندن سەرکەوتوو نەبوو") -> dict:
+    return {
+        "suitable": False,
+        "score": 0,
+        "matched_profile_id": "",
+        "matched_profile_title": "",
+        "job_title_ku": "نەزانراو",
+        "company_ku": "نەزانراو",
+        "location_ku": "نەزانراو",
+        "reason_ku": reason,
+        "summary_ku": "",
+        "requirements_ku": [],
+        "salary_ku": "نەزانراو",
+        "contact_ku": "نەزانراو",
+        "language": "unknown",
+        "location_ok": False
+    }
 
-Your task is to evaluate whether a Telegram job post matches the candidate profile.
+
+async def evaluate_job(job_text: str, group_name: str) -> dict:
+    # prompt intentionally short to avoid 400s
+    prompt = f"""
+Evaluate this Telegram job post strictly against the candidate.
+
+Candidate:
+- Base city: Erbil
+- Preferred locations: {", ".join(CANDIDATE_PROFILE["preferred_locations"][:20])}
+- Core profiles:
+  1) Sales and CRM: sales, CRM, customer service, marketing, branding, social media, reporting, negotiation, receptionist/front desk
+  2) Real Estate: property sales, real estate, client handling, negotiation, contracts, property presentation
+  3) Cashier/POS/System: cashier, POS, Microsoft Office, system handling, data entry, office clerk, reception
+- Reject roles related to restaurant, kitchen, food service, cleaning, security, guard, medical specialist, teaching, construction, driver-only.
 
 Rules:
-1. Only accept jobs in Erbil/Hawler or its nearby areas listed in preferred_locations.
-2. Reject jobs if the role matches rejected_roles.
-3. Match the job only against the candidate's 3 core profiles.
-4. Prefer jobs related to sales, CRM, real estate, cashier, POS, office/computer-based work, reception, customer handling.
-5. Reject jobs outside the candidate's career direction.
-6. If the job post is in English or Arabic, summarize it in Kurdish Sorani.
-7. If location is missing or unclear, set suitable=false and location_ok=false.
-8. If you are unsure, set suitable=false.
-9. Be strict.
-10. Return JSON only.
-
-Candidate profile:
-{json.dumps(CANDIDATE_PROFILE, ensure_ascii=False, indent=2)}
+1) Accept only if location is clearly in Erbil/Hawler or nearby listed areas.
+2) If location is missing or unclear, set suitable=false and location_ok=false.
+3) If role does not match any of the 3 core profiles, set suitable=false.
+4) If role matches rejected roles, set suitable=false.
+5) If post is in English or Arabic, summarize in Kurdish Sorani.
+6) If unsure, reject.
+7) Return JSON only.
 
 Telegram group:
 {group_name}
@@ -246,7 +262,7 @@ Telegram group:
 Job post:
 {job_text}
 
-Return JSON only in this exact format:
+Return this JSON object only:
 {{
   "suitable": true,
   "score": 0,
@@ -263,24 +279,7 @@ Return JSON only in this exact format:
   "language": "",
   "location_ok": true
 }}
-"""
-
-    default_result = {
-        "suitable": False,
-        "score": 0,
-        "matched_profile_id": "",
-        "matched_profile_title": "",
-        "job_title_ku": "نەزانراو",
-        "company_ku": "نەزانراو",
-        "location_ku": "نەزانراو",
-        "reason_ku": "هەڵسەنگاندن سەرکەوتوو نەبوو",
-        "summary_ku": "",
-        "requirements_ku": [],
-        "salary_ku": "نەزانراو",
-        "contact_ku": "نەزانراو",
-        "language": "unknown",
-        "location_ok": False
-    }
+""".strip()
 
     try:
         timeout = aiohttp.ClientTimeout(total=60)
@@ -298,41 +297,42 @@ Return JSON only in this exact format:
                         {"role": "user", "content": prompt}
                     ],
                     "temperature": 0.1,
-                    "max_tokens": 1200
+                    "max_tokens": 800,
+                    "response_format": {"type": "json_object"}
                 }
             ) as resp:
                 raw = await resp.text()
 
                 if resp.status != 200:
                     print(f"❌ Groq status: {resp.status}")
-                    print(raw[:400])
-                    return default_result
+                    print(raw[:1000])
+                    return fallback_result(f"Groq request failed: {resp.status}")
 
                 try:
                     data = json.loads(raw)
                 except Exception:
                     print("❌ Groq response JSON parse failed")
-                    print(raw[:400])
-                    return default_result
+                    print(raw[:1000])
+                    return fallback_result("Groq response parse failed")
 
                 if "choices" not in data or not data["choices"]:
                     print("❌ Groq هەڵە: choices")
-                    print(raw[:400])
-                    return default_result
+                    print(raw[:1000])
+                    return fallback_result("Groq choices missing")
 
                 content = data["choices"][0]["message"]["content"]
                 parsed = extract_json(content)
 
                 if not parsed:
                     print("❌ JSON parse failed")
-                    print(content[:400])
-                    return default_result
+                    print(content[:1000])
+                    return fallback_result("JSON parse failed")
 
                 return parsed
 
     except Exception as e:
         print(f"❌ Groq هەڵە: {e}")
-        return default_result
+        return fallback_result("هەڵسەنگاندنی AI سەرکەوتوو نەبوو")
 
 
 client = TelegramClient(StringSession(TELEGRAM_SESSION), API_ID, API_HASH)
@@ -354,7 +354,7 @@ async def handle_new_message(event):
         return
 
     print(f"\n🔍 هەلی کار دۆزراوەتەوە لە: {group_name}")
-    print(f"📝 {message_text[:180]}")
+    print(f"📝 {message_text[:220]}")
 
     evaluation = await evaluate_job(message_text, group_name)
 
