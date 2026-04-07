@@ -28,6 +28,9 @@ if not TELEGRAM_SESSION:
 NOTIFY_CHAT = "me"
 MIN_SCORE = 70
 GROQ_MODEL = "llama-3.3-70b-versatile"
+MIN_JOB_LENGTH_FOR_AI = 80
+MESSAGE_PRE_DELAY_SECONDS = 2
+LLM_SERIAL_DELAY_SECONDS = 1.5
 
 # ===== GROUPS =====
 GROUPS = [
@@ -150,9 +153,11 @@ CANDIDATE_PROFILE = {
         "security", "guard", "factory worker", "teacher", "doctor",
         "nurse", "medical specialist", "driver only", "construction labor",
         "baker", "barista", "dishwasher", "housekeeping", "janitor",
+        "delivery", "courier", "dispatcher", "messenger",
         "مطعم", "مطبخ", "شيف", "طباخ", "نادل", "تنظيف",
         "سكورتي", "حارس", "خباز", "كوفي", "نانکردن", "چێشتخانە",
-        "مەتبەخ", "شێف", "قاپشور", "فاست فود", "خۆراک"
+        "مەتبەخ", "شێف", "قاپشور", "فاست فود", "خۆراک",
+        "گەیاندن", "گەیاندنەوە", "پیک", "دڵیڤەری", "دڵیڤه‌ری", "گەیاندنکار"
     ],
 }
 
@@ -165,6 +170,14 @@ REJECT_LOCATION_TERMS = [
     "baghdad", "بغداد",
     "basra", "بصره", "البصرة",
     "mosul", "موصل", "موسڵ"
+]
+
+GOOD_FALLBACK_WORDS = [
+    "sales", "customer", "reception", "receptionist", "front desk",
+    "office", "admin", "crm", "showroom", "cashier", "pos",
+    "data entry", "clerk", "storekeeper", "customer service",
+    "فرۆش", "فرۆشیار", "پێشواز", "ریسپشن", "ئۆفیس", "ئیداری",
+    "کاشێر", "سیستەم", "داتا", "کارمەندی فرۆشتن", "خزمەتگوزاری کڕیار"
 ]
 
 seen_jobs = set()
@@ -203,6 +216,7 @@ def make_job_key(message_text: str, group_name: str) -> str:
 def extract_json(text: str):
     if not text:
         return None
+
     cleaned = text.strip()
 
     if "```" in cleaned:
@@ -228,11 +242,13 @@ def extract_json(text: str):
             return json.loads(match.group(0))
         except Exception:
             return None
+
     return None
 
 def fallback_result(reason: str = "هەڵسەنگاندن سەرکەوتوو نەبوو") -> dict:
     return {
         "ai_ok": False,
+        "fallback_used": False,
         "suitable": False,
         "score": 0,
         "matched_profile_id": "",
@@ -257,6 +273,7 @@ def quick_reject_check(job_text: str) -> dict | None:
         if normalize_text(bad_role) in txt:
             return {
                 "ai_ok": True,
+                "fallback_used": False,
                 "suitable": False,
                 "score": 0,
                 "matched_profile_id": "",
@@ -278,6 +295,7 @@ def quick_reject_check(job_text: str) -> dict | None:
         if normalize_text(bad_loc) in txt:
             return {
                 "ai_ok": True,
+                "fallback_used": False,
                 "suitable": False,
                 "score": 0,
                 "matched_profile_id": "",
@@ -297,25 +315,96 @@ def quick_reject_check(job_text: str) -> dict | None:
 
     return None
 
+def simple_fallback_scoring(text: str) -> dict | None:
+    txt = normalize_text(text)
+    score = 0
+
+    matched_words = []
+    for w in GOOD_FALLBACK_WORDS:
+        if normalize_text(w) in txt:
+            score += 12
+            matched_words.append(w)
+
+    # شوێنی هەولێر بۆ fallback زۆر گرنگە
+    preferred_location_found = False
+    for loc in CANDIDATE_PROFILE["preferred_locations"]:
+        if normalize_text(loc) in txt:
+            preferred_location_found = True
+            score += 20
+            break
+
+    if not preferred_location_found:
+        return None
+
+    if score >= 32:
+        reason = "fallback بێ AI: وشە گونجاوەکان دۆزرایەوە"
+        if matched_words:
+            reason += f" ({', '.join(matched_words[:4])})"
+
+        return {
+            "ai_ok": False,
+            "fallback_used": True,
+            "suitable": True,
+            "score": min(score, 65),
+            "matched_profile_id": "fallback",
+            "matched_profile_title": "Fallback Match",
+            "job_title_ku": "هەلی کار (fallback)",
+            "company_ku": "نەزانراو",
+            "location_ku": "هەولێر",
+            "reason_ku": reason,
+            "summary_ku": "AI بەردەست نەبوو، بڕیار بە شێوەی fallback درا.",
+            "requirements_ku": [],
+            "salary_ku": "نەزانراو",
+            "contact_ku": "نەزانراو",
+            "language": "unknown",
+            "location_ok": True,
+            "reject_reason_code": "fallback_match"
+        }
+
+    return None
+
 async def evaluate_job(job_text: str, group_name: str) -> dict:
     fast_reject = quick_reject_check(job_text)
     if fast_reject is not None:
         return fast_reject
 
+    # پۆستە زۆر بچووکەکان مەهێنە بۆ AI
+    if len(job_text.strip()) < MIN_JOB_LENGTH_FOR_AI:
+        return {
+            "ai_ok": True,
+            "fallback_used": False,
+            "suitable": False,
+            "score": 0,
+            "matched_profile_id": "",
+            "matched_profile_title": "",
+            "job_title_ku": "نەگونجاو",
+            "company_ku": "نەزانراو",
+            "location_ku": "نەزانراو",
+            "reason_ku": "دەقی پۆستەکە زۆر کورتە بۆ هەڵسەنگاندنی AI",
+            "summary_ku": "",
+            "requirements_ku": [],
+            "salary_ku": "نەزانراو",
+            "contact_ku": "نەزانراو",
+            "language": "unknown",
+            "location_ok": None,
+            "reject_reason_code": "too_short"
+        }
+
     safe_job_text = clean_for_llm(job_text)
     safe_group_name = clean_for_llm(group_name)
 
     locations_str = ", ".join(CANDIDATE_PROFILE["preferred_locations"][:20])
+
     prompt = (
         "You are a strict job-matching assistant.\n\n"
         "Evaluate whether this Telegram job post matches the candidate.\n\n"
-        f"Candidate base city: Erbil.\n\n"
+        f"Candidate base city: Erbil.\n"
         f"Preferred locations: {locations_str}\n\n"
         "Accepted career directions:\n"
         "1. Sales / CRM / Customer Service / Front Desk / Reception\n"
         "2. Real Estate / Property Sales / Leasing\n"
         "3. Cashier / POS / Data Entry / Office Clerk\n\n"
-        "Rejected roles: restaurant, kitchen, cleaner, security, guard, medical, teacher, construction, driver-only.\n\n"
+        "Rejected roles include restaurant, kitchen, cleaner, security, guard, medical, teacher, construction, driver-only, delivery and courier.\n\n"
         "Rules:\n"
         "1. Accept only if location is in Erbil or nearby preferred areas.\n"
         "2. If location missing or unclear: suitable=false, location_ok=false.\n"
@@ -324,18 +413,18 @@ async def evaluate_job(job_text: str, group_name: str) -> dict:
         "5. Always include ai_ok=true in the JSON.\n"
         "6. Add reject_reason_code with one of these values only:\n"
         '   "accepted", "location_mismatch", "role_rejected", "low_score", "unclear".\n\n'
-        "Score rules (score must be a real number 0-100 based on match quality):\n"
-        "- 90-100: perfect match (role + Erbil location + fits candidate)\n"
-        "- 70-89: good match (role ok, location ok)\n"
+        "Score rules:\n"
+        "- 90-100: perfect match\n"
+        "- 70-89: good match\n"
         "- below 70: poor match\n\n"
         f"Group: {safe_group_name}\n\n"
         f"Job post:\n{safe_job_text}\n\n"
-        "Return valid JSON only, fill ALL fields with real values:\n"
+        "Return valid JSON only. Example:\n"
         '{"ai_ok":true,"suitable":true,"score":85,"matched_profile_id":"sales_crm","matched_profile_title":"Sales and CRM","job_title_ku":"فرۆشیار","company_ku":"کۆمپانیا","location_ku":"هەولێر","reason_ku":"هۆکار","summary_ku":"پوختە","requirements_ku":["مەرج١"],"salary_ku":"موچە","contact_ku":"پەیوەندی","language":"ku","location_ok":true,"reject_reason_code":"accepted"}'
     )
 
     max_attempts = 5
-    backoff_seconds = [2, 5, 10, 20, 30]
+    backoff_seconds = [5, 10, 20, 40, 60]
 
     for attempt in range(max_attempts):
         try:
@@ -345,7 +434,10 @@ async def evaluate_job(job_text: str, group_name: str) -> dict:
                 await asyncio.sleep(wait_time)
 
             timeout = aiohttp.ClientTimeout(total=60)
+
             async with llm_lock:
+                await asyncio.sleep(LLM_SERIAL_DELAY_SECONDS)
+
                 async with aiohttp.ClientSession(timeout=timeout) as session:
                     async with session.post(
                         "https://api.groq.com/openai/v1/chat/completions",
@@ -371,17 +463,17 @@ async def evaluate_job(job_text: str, group_name: str) -> dict:
                         if resp.status != 200:
                             print(f"❌ Groq status: {resp.status}")
                             print(f"❌ Groq error: {raw[:500]}")
-                            return fallback_result(f"Groq request failed: {resp.status}")
+                            break
 
                         try:
                             data = json.loads(raw)
                         except Exception:
                             print("❌ Groq response JSON parse failed")
-                            return fallback_result("Groq response parse failed")
+                            break
 
                         if "choices" not in data or not data["choices"]:
                             print("❌ Groq choices missing")
-                            return fallback_result("Groq choices missing")
+                            break
 
                         content = data["choices"][0]["message"]["content"]
                         parsed = extract_json(content)
@@ -389,13 +481,25 @@ async def evaluate_job(job_text: str, group_name: str) -> dict:
                         if not parsed:
                             print("❌ JSON parse failed")
                             print(content[:500])
-                            return fallback_result("JSON parse failed")
+                            break
 
                         parsed.setdefault("ai_ok", True)
+                        parsed.setdefault("fallback_used", False)
                         parsed.setdefault("reject_reason_code", "unclear")
                         parsed.setdefault("location_ok", None)
                         parsed.setdefault("suitable", False)
                         parsed.setdefault("score", 0)
+                        parsed.setdefault("matched_profile_id", "")
+                        parsed.setdefault("matched_profile_title", "")
+                        parsed.setdefault("job_title_ku", "نەزانراو")
+                        parsed.setdefault("company_ku", "نەزانراو")
+                        parsed.setdefault("location_ku", "نەزانراو")
+                        parsed.setdefault("reason_ku", "نەزانراو")
+                        parsed.setdefault("summary_ku", "")
+                        parsed.setdefault("requirements_ku", [])
+                        parsed.setdefault("salary_ku", "نەزانراو")
+                        parsed.setdefault("contact_ku", "نەزانراو")
+                        parsed.setdefault("language", "unknown")
 
                         if parsed.get("suitable", False):
                             parsed["reject_reason_code"] = "accepted"
@@ -408,6 +512,12 @@ async def evaluate_job(job_text: str, group_name: str) -> dict:
 
         except Exception as e:
             print(f"❌ Groq هەڵە (هەوڵ {attempt + 1}/{max_attempts}): {e}")
+
+    # AI failed -> fallback
+    fallback = simple_fallback_scoring(job_text)
+    if fallback:
+        print("🟡 fallback بەکارهات بەهۆی AI failure")
+        return fallback
 
     return fallback_result("هەڵسەنگاندنی AI سەرکەوتوو نەبوو")
 
@@ -428,12 +538,15 @@ async def handle_new_message(event):
     if job_key in seen_jobs:
         return
 
+    # کەمکردنەوەی هێرشی داواکارییەکان
+    await asyncio.sleep(MESSAGE_PRE_DELAY_SECONDS)
+
     print(f"\n🔍 هەلی کار دۆزراوەتەوە لە: {group_name}")
     print(f"📝 {message_text[:220]}")
 
     evaluation = await evaluate_job(message_text, group_name)
 
-    if not evaluation.get("ai_ok", False):
+    if not evaluation.get("ai_ok", False) and not evaluation.get("fallback_used", False):
         print(f"⚠️ AI نەتوانی هەڵسەنگاندن تەواو بکات - {evaluation.get('reason_ku', '')}")
         return
 
@@ -446,7 +559,7 @@ async def handle_new_message(event):
         return
 
     score = int(evaluation.get("score", 0))
-    if score < MIN_SCORE:
+    if score < MIN_SCORE and not evaluation.get("fallback_used", False):
         print(f"❌ نمرە کەمە ({score}/100)")
         return
 
@@ -470,6 +583,10 @@ async def handle_new_message(event):
         else "بەردەست نییە"
     )
 
+    fallback_note = ""
+    if evaluation.get("fallback_used", False):
+        fallback_note = "\n⚠️ ئەم بڕیارە بە fallback دراوە چونکە AI بەردەست نەبوو.\n"
+
     notification = f"""🟢 هەلی کاری گونجاو دۆزراوەتەوە!
 
 📌 وەزیفە: {job_title}
@@ -477,7 +594,7 @@ async def handle_new_message(event):
 📍 شوێن: {location_ku}
 ⭐ گونجاوی: {score}/100
 👤 Profile: {matched_profile}
-💬 هۆکار: {reason_ku}
+💬 هۆکار: {reason_ku}{fallback_note}
 
 📋 پوختە:
 {summary_ku}
