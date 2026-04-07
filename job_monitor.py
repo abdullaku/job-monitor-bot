@@ -257,10 +257,14 @@ async def evaluate_job(job_text: str, group_name: str) -> dict:
         "2. If location missing or unclear: suitable=false, location_ok=false.\n"
         "3. If role does not match accepted directions: reject.\n"
         "4. Output valid JSON only. No markdown.\n\n"
+        "Score rules (score must be a real number 0-100 based on match quality):\n"
+        "- 90-100: perfect match (role + Erbil location + fits candidate)\n"
+        "- 70-89: good match (role ok, location ok)\n"
+        "- below 70: poor match\n\n"
         f"Group: {safe_group_name}\n\n"
         f"Job post:\n{safe_job_text}\n\n"
-        'Return exactly this JSON:\n'
-        '{"suitable":true,"score":0,"matched_profile_id":"","matched_profile_title":"","job_title_ku":"","company_ku":"","location_ku":"","reason_ku":"","summary_ku":"","requirements_ku":[],"salary_ku":"","contact_ku":"","language":"","location_ok":true}'
+        "Return valid JSON only, fill ALL fields with real values:\n"
+        '{"suitable":true,"score":85,"matched_profile_id":"sales_crm","matched_profile_title":"Sales and CRM","job_title_ku":"فرۆشیار","company_ku":"کۆمپانیا","location_ku":"هەولێر","reason_ku":"هۆکار","summary_ku":"پوختە","requirements_ku":["مەرج١"],"salary_ku":"موچە","contact_ku":"پەیوەندی","language":"ku","location_ok":true}'
     )
 
     for attempt in range(3):
