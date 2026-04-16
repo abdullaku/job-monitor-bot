@@ -83,16 +83,39 @@ def extract_contact(text: str) -> str:
     phones = re.findall(r"(?:\+?964|0)7\d{9}", text)
     emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
 
-    parts = []
-    if phones:
-        parts.extend(list(dict.fromkeys(phones))[:2])
-    if emails:
-        parts.extend(list(dict.fromkeys(emails))[:2])
+    phones = list(dict.fromkeys(phones))[:2]
+    emails = list(dict.fromkeys(emails))[:2]
 
-    if parts:
-        return " | ".join(parts)
+    if phones:
+        return " | ".join(phones)
+
+    if emails:
+        return " | ".join(emails)
 
     return "نەزانراو"
+
+
+def extract_contact_type(text: str) -> str:
+    """
+    Returns:
+      'phone'      - only phone found
+      'email'      - only email found
+      'both'       - phone + email found
+      'none'       - nothing found
+    """
+    phones = re.findall(r"(?:\+?964|0)7\d{9}", text)
+    emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
+
+    has_phone = bool(phones)
+    has_email = bool(emails)
+
+    if has_phone and has_email:
+        return "both"
+    if has_phone:
+        return "phone"
+    if has_email:
+        return "email"
+    return "none"
 
 
 def extract_requirements(text: str):
