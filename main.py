@@ -7,6 +7,7 @@ from config import API_ID, API_HASH, TELEGRAM_SESSION, GROUPS, NOTIFY_CHAT, MIN_
 from text_utils import contains_job_keyword, make_job_key
 from storage import load_seen_jobs, is_seen, mark_seen
 from evaluator import evaluate_job
+from email_sender import send_cv_email
 
 client = TelegramClient(StringSession(TELEGRAM_SESSION), API_ID, API_HASH)
 
@@ -57,6 +58,26 @@ def register_handlers(app_client):
         matched_profile = evaluation.get("matched_profile_title", "")
         salary_ku = evaluation.get("salary_ku", "نەزانراو")
         contact_ku = evaluation.get("contact_ku", "نەزانراو")
+        contact_type = evaluation.get("contact_type", "none")
+
+        # ئەگەر تەنها ئیمێل بوو → نەینێرێت
+        if contact_type == "email":
+            print(f"⏭️ تەنها ئیمێل هەیە، پۆستەکە نادرێت ({contact_ku})")
+            return
+
+        # ئەگەر هەردوو (ژمارە + ئیمێل) هەبوو → ئیمێل تەنها نیشان بدە + CV بنێرە
+        if contact_type == "both":
+            import re as _re
+            emails_found = _re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", message_text)
+            if emails_found:
+                contact_ku = " | ".join(list(dict.fromkeys(emails_found))[:2])
+                # CV بنێرە بۆ خاوەنکار
+                role_id = evaluation.get("matched_profile_id", "")
+                import asyncio as _asyncio
+                _asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: send_cv_email(emails_found[0], job_title, role_id)
+                )
         requirements_ku = evaluation.get("requirements_ku", [])
 
         req_text = "\n".join([f"- {x}" for x in requirements_ku[:6]]) if requirements_ku else "- نەزانراو"
@@ -87,6 +108,7 @@ def register_handlers(app_client):
 
 💰 موچە: {salary_ku}
 ☎️ پەیوەندی: {contact_ku}
+{"📧 CV ئۆتۆماتیکی نێردرا!" if contact_type == "both" else ""}
 
 📢 گرووپ: {group_name}
 🔗 لینک: {job_link}
