@@ -6,6 +6,7 @@ from extractors import (
     extract_company,
     extract_salary,
     extract_contact,
+    extract_contact_type,
     extract_requirements,
     extract_location,
     detect_gender_requirement,
@@ -32,6 +33,7 @@ def make_result(
     requirements_ku=None,
     salary_ku: str = "نەزانراو",
     contact_ku: str = "نەزانراو",
+    contact_type: str = "none",
     language: str = "unknown",
 ):
     return {
@@ -49,6 +51,7 @@ def make_result(
         "requirements_ku": requirements_ku or [],
         "salary_ku": salary_ku,
         "contact_ku": contact_ku,
+        "contact_type": contact_type,
         "language": language,
         "location_ok": location_ok,
         "reject_reason_code": reject_reason_code,
@@ -149,6 +152,7 @@ def evaluate_job(job_text: str, group_name: str):
     company = extract_company(job_text)
     salary = extract_salary(job_text)
     contact = extract_contact(job_text)
+    contact_type = extract_contact_type(job_text)
     requirements = extract_requirements(job_text)
     language = detect_language(job_text)
 
@@ -187,5 +191,6 @@ def evaluate_job(job_text: str, group_name: str):
         requirements_ku=requirements,
         salary_ku=salary,
         contact_ku=contact,
+        contact_type=contact_type,
         language=language,
     )
