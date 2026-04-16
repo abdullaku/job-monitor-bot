@@ -10,6 +10,10 @@ if not TELEGRAM_SESSION:
     print("❌ TELEGRAM_SESSION بەتاڵە")
     sys.exit(1)
 
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").strip()
+if not SMTP_PASSWORD:
+    print("⚠️ SMTP_PASSWORD دانەنراوە — ناردنی ئیمێل ناکاریگەر دەبێت")
+
 NOTIFY_CHAT = "me"
 MIN_SCORE = 70
 MIN_TEXT_LENGTH = 40
