@@ -3,6 +3,7 @@ import asyncio
 import logging
 from datetime import datetime
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from config import (
     API_ID, API_HASH, TELEGRAM_SESSION,
     GROUPS, JOB_KEYWORDS, MIN_TEXT_LENGTH,
@@ -25,7 +26,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-client = TelegramClient('session', API_ID, API_HASH)
+client = TelegramClient(StringSession(TELEGRAM_SESSION), API_ID, API_HASH)
 
 def is_job_post(text):
     if len(text.strip()) < MIN_TEXT_LENGTH:
@@ -34,7 +35,6 @@ def is_job_post(text):
     return any(kw.lower() in text_lower for kw in JOB_KEYWORDS)
 
 def extract_phone_from_job(job):
-    import re
     text = job.get('description', '') + ' ' + job.get('content', '')
     patterns = [
         r'07[0-9]{9}',
