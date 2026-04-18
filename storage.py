@@ -61,3 +61,8 @@ def is_seen(job_key: str) -> bool:
 def mark_seen(job_key: str):
     seen_jobs[job_key] = datetime.now().isoformat()
     cleanup_seen_jobs(save=True)
+
+def save_seen_job(job_id: str):
+    seen = load_seen_jobs()
+    seen[job_id] = True
+    save_seen_jobs(seen)
