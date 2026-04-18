@@ -227,3 +227,11 @@ def detect_role_matches(job_text: str):
 
     matches.sort(key=lambda x: len(x[2]), reverse=True)
     return matches
+
+def extract_jobs_from_sources(sources):
+    all_jobs = []
+    for source in sources:
+        if source.get("type") == "telegram":
+            # ئەمە placeholder ە، کۆدی ڕاستەقینەی تێلیگرامت لێرە دەنووسیت
+            pass
+    return all_jobs
