@@ -114,3 +114,4 @@ INTERNSHIP_TERMS = [
     "ڕاهێنان", "فێرخواز", "ستاج", "انترن",
     "تدريب", "متدرب"
 ]
+WHATSAPP_ENABLED = True
