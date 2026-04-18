@@ -194,3 +194,8 @@ def evaluate_job(job_text: str, group_name: str):
         contact_type=contact_type,
         language=language,
     )
+
+def evaluate_job_match(job: dict):
+    text = job.get("description", "") + " " + job.get("content", "")
+    result = evaluate_job(text, group_name="")
+    return result["score"], result["suitable"]
