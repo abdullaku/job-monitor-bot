@@ -99,3 +99,10 @@ def send_cv_email(to_email: str, job_title: str, role_id: str) -> bool:
     except Exception as e:
         print(f"❌ هەڵە لە ناردنی ئیمێل: {e}")
         return False
+
+def send_email_notification(to_email: str, subject: str, body: str, attachment_path: str = None):
+    return send_cv_email(
+        to_email=to_email,
+        job_title=subject,
+        role_id=""
+    )
