@@ -96,3 +96,7 @@ CANDIDATE_PROFILE = {
         "ئەندازیار", "موحاسب", "محاسب", "حاسبات", "هەژمار", "دارایی"
     ]
 }
+
+USER_NAME = "ناوی خۆت"
+USER_PHONE = "07701234567"
+USER_CV_PATH = "/app/cv.pdf"
