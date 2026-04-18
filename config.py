@@ -122,3 +122,9 @@ INTERNSHIP_TERMS = [
 WHATSAPP_ENABLED = True
 CHECK_INTERVAL_MINUTES = 15
 EMAIL_ENABLED = False
+
+
+SEARCH_SOURCES = [
+    {"type": "telegram", "name": group}
+    for group in GROUPS
+]
