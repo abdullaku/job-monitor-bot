@@ -37,15 +37,58 @@ def extract_emails(text: str) -> list:
     return re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
 
 
+def extract_phones(text: str) -> list:
+    return re.findall(r"(?:\+?964|0)7\d{9}", text)
+
+
+def build_notification(result: dict, email_sent: bool, emails: list, phones: list, msg_link: str) -> str:
+    score       = result["score"]
+    title       = result["job_title_ku"]
+    company     = result["company_ku"]
+    location    = result["location_ku"]
+    role        = result["matched_profile_title"]
+    job_type    = result["job_type_ku"]
+    contact_raw = result["contact_ku"]
+
+    # ستاتەسی ئیمێڵ
+    if email_sent:
+        email_status = f"✅ CV نێردرا بۆ: {emails[0]}"
+    elif emails:
+        email_status = f"⚠️ CV نەنێردرا (هەڵە): {emails[0]}"
+    else:
+        email_status = "📭 ئیمێڵی خاوەنکار نییە"
+
+    # ژمارەی مۆبایل
+    if phones:
+        phone_lines = "\n".join(f"  📞 {p}" for p in phones[:3])
+        phone_status = f"ژمارەی پەیوەندی:\n{phone_lines}"
+    else:
+        phone_status = "📵 ژمارەی مۆبایل نییە"
+
+    return (
+        f"🎯 **هەلی کاری گونجاو دۆزرایەوە!**\n"
+        f"{'─' * 30}\n"
+        f"📌 **پۆست:** {title}\n"
+        f"🏢 **کۆمپانیا:** {company}\n"
+        f"📍 **شوێن:** {location}\n"
+        f"💼 **جۆری کار:** {job_type}\n"
+        f"🎭 **ڕۆڵ:** {role}\n"
+        f"⭐ **نمرە:** {score}/100\n"
+        f"{'─' * 30}\n"
+        f"{email_status}\n"
+        f"{phone_status}\n"
+        f"{'─' * 30}\n"
+        f"🔗 [سەیری پۆستەکە بکە]({msg_link})"
+    )
+
+
 @client.on(events.NewMessage(chats=GROUPS))
 async def handler(event):
     text = event.message.message
     if not text or not is_job_post(text):
         return
 
-    # ئارزیابی تەواوی پۆست
     result = evaluate_job(text, group_name="")
-
     if not result["suitable"]:
         logger.debug(f"❌ گونجاو نییە (Score: {result['score']}) — {result['reason_ku']}")
         return
@@ -57,33 +100,43 @@ async def handler(event):
     logger.info(
         f"🎯 هەلی کاری گونجاو! Score={result['score']} | "
         f"Role={result['matched_profile_title']} | "
-        f"Title={result['job_title_ku']} | "
         f"Contact={result['contact_type']}"
     )
 
-    # ئیمێڵ دەدۆزینەوە لە ناوی پۆستەکە
     emails = extract_emails(text)
+    phones = extract_phones(text)
 
+    # --- ناردنی ئیمێڵ ---
+    email_sent = False
     if EMAIL_ENABLED and emails:
-        contact_email = emails[0]
         try:
-            success = send_cv_email(
-                to_email=contact_email,
+            email_sent = send_cv_email(
+                to_email=emails[0],
                 job_title=result["job_title_ku"],
                 role_id=result["matched_profile_id"]
             )
-            if success:
-                logger.info(f"📧 CV نێردرا بۆ: {contact_email} ({result['matched_profile_title']})")
+            if email_sent:
+                logger.info(f"📧 CV نێردرا بۆ: {emails[0]}")
             else:
-                logger.error(f"❌ CV نەنێردرا بۆ: {contact_email}")
+                logger.error(f"❌ CV نەنێردرا بۆ: {emails[0]}")
         except Exception as e:
             logger.error(f"❌ هەڵەی ئیمێڵ: {e}")
 
-    elif EMAIL_ENABLED and not emails:
-        logger.info(
-            f"ℹ️ هەلی کار گونجاوە بەڵام ئیمێڵی خاوەنکار نەدۆزرایەوە "
-            f"| Contact: {result['contact_ku']}"
+    # --- ئاگادارکردنەوەی تێلیگرام ---
+    try:
+        chat = await event.get_chat()
+        username = getattr(chat, "username", None)
+        msg_link = (
+            f"https://t.me/{username}/{event.message.id}"
+            if username
+            else f"(پەیامی ژمارە {event.message.id})"
         )
+
+        notification = build_notification(result, email_sent, emails, phones, msg_link)
+        await client.send_message("me", notification, parse_mode="md")
+        logger.info("📨 ئاگادارکردنەوە نێردرا بۆ تێلیگرام")
+    except Exception as e:
+        logger.error(f"❌ هەڵەی ئاگادارکردنەوەی تێلیگرام: {e}")
 
     save_seen_job(job_id)
 
