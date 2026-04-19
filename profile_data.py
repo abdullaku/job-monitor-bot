@@ -11,7 +11,6 @@ CANDIDATE_PROFILE = {
         "60 meter", "60m", "60 m", "شەست مەتری", "60 متري",
         "gullan", "golan", "گولەن", "گولان",
         "empire", "ئیمپایەر",
-        # ✅ زیادکرا: الیف تاوەر لە CVی خانووبەرەدا باسکراوە
         "elif tower", "الیف تاوەر", "elif",
         "italian city", "ئیتاڵی",
         "dream city", "دریم سیتی",
@@ -35,15 +34,14 @@ CANDIDATE_PROFILE = {
                 "crm", "client relation", "client relations", "client service",
                 "front desk", "reception", "receptionist", "call center", "telesales",
                 "retail sales", "showroom", "shop assistant",
-                # ✅ زیادکرا
                 "business development", "account manager", "key account",
                 "فرۆش", "فرۆشیار", "فرۆشتن",
-                "خزمەتگوزاری کڕیار", "کڕیار", "مشتەری",   # ✅ مشتەری زیادکرا
+                "خزمەتگوزاری کڕیار", "کڕیار", "مشتەری",
                 "پێشواز", "ریسپشن", "شوورۆم",
-                "پسپۆڕی فرۆشتن", "پسپۆڕ فرۆشتن",          # ✅ زیادکرا
-                "مبيعات", "مبيع", "مندوب مبيعات", "ممثل مبيعات",  # ✅ زیادکرا
+                "پسپۆڕی فرۆشتن", "پسپۆڕ فرۆشتن",
+                "مبيعات", "مبيع", "مندوب مبيعات", "ممثل مبيعات",
                 "خدمة العملاء", "استقبال", "كول سنتر", "علاقات العملاء",
-                "تطوير الأعمال", "مدير حساب"               # ✅ زیادکرا
+                "تطوير الأعمال", "مدير حساب"
             ]
         },
         {
@@ -53,14 +51,13 @@ CANDIDATE_PROFILE = {
                 "real estate", "property", "leasing", "lease", "property sales",
                 "property consultant", "property advisor", "real estate sales",
                 "real estate agent", "real estate consultant",
-                # ✅ زیادکرا
                 "broker", "brokerage", "real estate broker", "property broker",
-                "خانووبەرە", "موڵک", "نێوەندگیری",         # ✅ نێوەندگیری زیادکرا
-                "نێوەندگار", "نێوەندگاری",                 # ✅ زیادکرا
+                "خانووبەرە", "موڵک", "نێوەندگیری",
+                "نێوەندگار", "نێوەندگاری",
                 "عقارات", "عقار", "ایجار", "كراء",
                 "بیع العقارات", "تأجير", "مستشار عقاري",
-                "وسيط عقاري", "وسيط", "سمسار",             # ✅ زیادکرا
-                "تسويق عقاري"                               # ✅ زیادکرا
+                "وسيط عقاري", "وسيط", "سمسار",
+                "تسويق عقاري"
             ]
         },
         {
@@ -69,13 +66,11 @@ CANDIDATE_PROFILE = {
             "keywords": [
                 "cashier", "cash", "pos", "point of sale", "billing", "checkout",
                 "card payment", "bank card", "till",
-                # ✅ زیادکرا
                 "teller", "payment", "transaction",
                 "کاشێر", "کاش", "سیستەمی فرۆشتن", "پۆس", "پارە وەرگرتن",
-                "بەڕێوەبردنی سیستەم",                      # ✅ زیادکرا — لە CVدا هەیە
-                "تۆمارکردن",                               # ✅ زیادکرا
+                "بەڕێوەبردنی سیستەم", "تۆمارکردن",
                 "كاشير", "نقطة بيع", "كارت بنكي", "دفع",
-                "أمين الصندوق"                             # ✅ زیادکرا
+                "أمين الصندوق"
             ]
         },
         {
@@ -97,34 +92,30 @@ CANDIDATE_PROFILE = {
             "keywords": [
                 "marketing", "branding", "brand", "social media", "digital marketing",
                 "content", "content creator", "promotion", "campaign", "media",
-                # ✅ زیادکرا
                 "advertising", "ads", "ad specialist", "media buyer",
                 "مارکێتینگ", "براندینگ", "براند", "سۆشیال میدیا", "دیجیتاڵ",
-                "ناساندن", "پڕۆمۆشن",
-                "ریکلام", "ڕیکلام",                        # ✅ زیادکرا — لە CVدا هەیە
+                "ناساندن", "پڕۆمۆشن", "ریکلام", "ڕیکلام",
                 "تسويق", "علامة تجارية", "سوشيال ميديا", "ميديا", "حملة",
-                "إعلان", "اعلان", "إعلانات"               # ✅ زیادکرا
+                "إعلان", "اعلان", "إعلانات"
             ]
         }
     ],
     "rejected_roles": [
         "chef", "cook", "kitchen", "waiter", "restaurant", "cleaner", "cleaning",
-        "security guard", "security officer",              # ✅ گۆڕا: "security" تەنها ڕەت نەکات چونکە "security" لە ناوی کۆمپانیاشدا دێت
+        "security guard", "security officer",
         "factory worker", "teacher", "doctor", "nurse",
         "medical", "driver", "construction", "labor", "barista", "dishwasher",
         "housekeeping", "janitor", "delivery driver", "courier", "messenger", "welder",
         "engineer", "civil engineer", "electrical engineer", "mechanical engineer",
         "accountant", "accounting",
-        # ✅ "finance" لابرا — چونکە "financial sales" یان "finance officer" دروستە بۆ CVت
         "hr manager", "human resources specialist", "hr specialist",
         "مطعم", "مطبخ", "شيف", "طباخ", "نادل", "تنظيف", "حارس أمن",
         "معلم", "مدرس", "طبيب", "ممرض", "سائق", "بناء", "عامل بناء", "توصيل",
         "كوفي", "قاپشور", "فاست فود", "خۆراک", "گەیاندن", "پیک", "دڵیڤەری",
         "ئەندازیار", "موحاسب", "محاسب", "حاسبات", "هەژمار"
-        # ✅ "دارایی" لابرا — چونکە "دارایی" بە کوردی finance ە، بەڵام "sales finance" گونجاوە
     ]
 }
 
-USER_NAME = "Abdulla Ali"          # ✅ گۆڕا: ناوی ڕاستی لە CVەکەوە
-USER_PHONE = "0780 466 6191"       # ✅ گۆڕا: ژمارەی ڕاستی لە CVەکەوە
+USER_NAME = "Abdulla Ali"
+USER_PHONE = "0780 466 6191"
 USER_CV_PATH = "/app/cv.pdf"
