@@ -30,7 +30,7 @@ def load_seen_jobs():
 
     if not SEEN_JOBS_FILE.exists():
         seen_jobs = {}
-        return
+        return seen_jobs  # ✅ FIX 1: return instead of bare return
 
     try:
         seen_jobs = json.loads(SEEN_JOBS_FILE.read_text(encoding="utf-8"))
@@ -40,6 +40,7 @@ def load_seen_jobs():
         seen_jobs = {}
 
     cleanup_seen_jobs(save=False)
+    return seen_jobs  # ✅ FIX 1: always return seen_jobs
 
 
 def save_seen_jobs():
@@ -63,6 +64,6 @@ def mark_seen(job_key: str):
     cleanup_seen_jobs(save=True)
 
 def save_seen_job(job_id: str):
-    seen = load_seen_jobs()
-    seen[job_id] = True
-    save_seen_jobs(seen)
+    load_seen_jobs()  # ✅ FIX 2: load into global, don't assign return value
+    seen_jobs[job_id] = datetime.now().isoformat()  # ✅ use global directly
+    save_seen_jobs()  # ✅ no argument needed
