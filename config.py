@@ -114,3 +114,5 @@ INTERNSHIP_TERMS = [
     "ڕاهێنان", "فێرخواز", "ستاج", "انترن",
     "تدريب", "متدرب"
 ]
+EMAIL_ENABLED = True
+CHECK_INTERVAL_MINUTES = 15
