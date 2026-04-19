@@ -114,17 +114,3 @@ INTERNSHIP_TERMS = [
     "ڕاهێنان", "فێرخواز", "ستاج", "انترن",
     "تدريب", "متدرب"
 ]
-# ... هەموو کۆدەکانی پێشووت ...
-
-# ============================================
-# ڕێکخستنەکانی گشتی
-# ============================================
-WHATSAPP_ENABLED = True
-CHECK_INTERVAL_MINUTES = 15
-EMAIL_ENABLED = False
-
-
-SEARCH_SOURCES = [
-    {"type": "telegram", "name": group}
-    for group in GROUPS
-]
