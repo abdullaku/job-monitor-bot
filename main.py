@@ -42,15 +42,13 @@ def extract_phones(text: str) -> list:
 
 
 def build_notification(result: dict, email_sent: bool, emails: list, phones: list, msg_link: str) -> str:
-    score       = result["score"]
-    title       = result["job_title_ku"]
-    company     = result["company_ku"]
-    location    = result["location_ku"]
-    role        = result["matched_profile_title"]
-    job_type    = result["job_type_ku"]
-    contact_raw = result["contact_ku"]
+    score    = result["score"]
+    title    = result["job_title_ku"]
+    company  = result["company_ku"]
+    location = result["location_ku"]
+    role     = result["matched_profile_title"]
+    job_type = result["job_type_ku"]
 
-    # ستاتەسی ئیمێڵ
     if email_sent:
         email_status = f"✅ CV نێردرا بۆ: {emails[0]}"
     elif emails:
@@ -58,7 +56,6 @@ def build_notification(result: dict, email_sent: bool, emails: list, phones: lis
     else:
         email_status = "📭 ئیمێڵی خاوەنکار نییە"
 
-    # ژمارەی مۆبایل
     if phones:
         phone_lines = "\n".join(f"  📞 {p}" for p in phones[:3])
         phone_status = f"ژمارەی پەیوەندی:\n{phone_lines}"
@@ -89,16 +86,18 @@ async def handler(event):
         return
 
     result = evaluate_job(text, group_name="")
+
     if not result["suitable"]:
-        logger.debug(f"❌ گونجاو نییە (Score: {result['score']}) — {result['reason_ku']}")
+        logger.info(f"❌ ڕەتکرایەوە | هۆکار: {result['reject_reason_code']} | {result['reason_ku']}")
         return
 
     job_id = str(event.message.id)
     if job_id in load_seen_jobs():
+        logger.info(f"⏭️ پێشتر بینراوە — تێپەڕا")
         return
 
     logger.info(
-        f"🎯 هەلی کاری گونجاو! Score={result['score']} | "
+        f"🎯 گونجاو! Score={result['score']} | "
         f"Role={result['matched_profile_title']} | "
         f"Contact={result['contact_type']}"
     )
@@ -106,7 +105,6 @@ async def handler(event):
     emails = extract_emails(text)
     phones = extract_phones(text)
 
-    # --- ناردنی ئیمێڵ ---
     email_sent = False
     if EMAIL_ENABLED and emails:
         try:
@@ -121,8 +119,9 @@ async def handler(event):
                 logger.error(f"❌ CV نەنێردرا بۆ: {emails[0]}")
         except Exception as e:
             logger.error(f"❌ هەڵەی ئیمێڵ: {e}")
+    elif EMAIL_ENABLED and not emails:
+        logger.info(f"📭 ئیمێڵی خاوەنکار نەدۆزرایەوە | پەیوەندی: {result['contact_ku']}")
 
-    # --- ئاگادارکردنەوەی تێلیگرام ---
     try:
         chat = await event.get_chat()
         username = getattr(chat, "username", None)
@@ -131,7 +130,6 @@ async def handler(event):
             if username
             else f"(پەیامی ژمارە {event.message.id})"
         )
-
         notification = build_notification(result, email_sent, emails, phones, msg_link)
         await client.send_message("me", notification, parse_mode="md")
         logger.info("📨 ئاگادارکردنەوە نێردرا بۆ تێلیگرام")
